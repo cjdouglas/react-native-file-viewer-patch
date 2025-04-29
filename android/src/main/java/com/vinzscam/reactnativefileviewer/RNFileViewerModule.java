@@ -18,123 +18,146 @@ import com.facebook.react.bridge.ReadableMap;
 import com.facebook.react.bridge.WritableMap;
 
 import com.facebook.react.modules.core.DeviceEventManagerModule;
+
 import java.io.File;
 
 public class RNFileViewerModule extends ReactContextBaseJavaModule {
-  private final ReactApplicationContext reactContext;
-  private static final String SHOW_OPEN_WITH_DIALOG = "showOpenWithDialog" ;
-  private static final String SHOW_STORE_SUGGESTIONS ="showAppsSuggestions";
-  private static final String OPEN_EVENT = "RNFileViewerDidOpen";
-  private static final String DISMISS_EVENT = "RNFileViewerDidDismiss";
-  private static final Integer RN_FILE_VIEWER_REQUEST = 33341;
+    private final ReactApplicationContext reactContext;
+    private static final String SHOW_OPEN_WITH_DIALOG = "showOpenWithDialog";
+    private static final String SHOW_STORE_SUGGESTIONS = "showAppsSuggestions";
+    private static final String OPEN_EVENT = "RNFileViewerDidOpen";
+    private static final String DISMISS_EVENT = "RNFileViewerDidDismiss";
+    private static final Integer RN_FILE_VIEWER_REQUEST = 33341;
 
-  private final ActivityEventListener mActivityEventListener = new BaseActivityEventListener() {
-    @Override
-    public void onActivityResult(final Activity activity, final int requestCode, final int resultCode, final Intent intent) {
-      sendEvent(DISMISS_EVENT, requestCode - RN_FILE_VIEWER_REQUEST, null);
-    }
-  };
+    private final ActivityEventListener mActivityEventListener = new BaseActivityEventListener() {
+        @Override
+        public void onActivityResult(final Activity activity, final int requestCode, final int resultCode, final Intent intent) {
+            sendEvent(DISMISS_EVENT, requestCode - RN_FILE_VIEWER_REQUEST, null);
+        }
+    };
 
-  public RNFileViewerModule(ReactApplicationContext reactContext) {
-    super(reactContext);
-    this.reactContext = reactContext;
-    reactContext.addActivityEventListener(mActivityEventListener);
-  }
-
-  @ReactMethod
-  public void open(String path, Integer currentId, ReadableMap options) {
-    Uri contentUri = null;
-    Boolean showOpenWithDialog = options.hasKey(SHOW_OPEN_WITH_DIALOG) ? options.getBoolean(SHOW_OPEN_WITH_DIALOG) : false;
-    Boolean showStoreSuggestions = options.hasKey(SHOW_STORE_SUGGESTIONS) ? options.getBoolean(SHOW_STORE_SUGGESTIONS) : false;
-
-    if(path.startsWith("content://")) {
-      contentUri = Uri.parse(path);
-    } else {
-      File newFile = new File(path);
-
-      Activity currentActivity = getCurrentActivity();
-      if(currentActivity == null) {
-        sendEvent(OPEN_EVENT, currentId, "Activity doesn't exist");
-        return;
-      }
-      try {
-        final String packageName = currentActivity.getPackageName();
-        final String authority = new StringBuilder(packageName).append(".provider").toString();
-        contentUri = FileProvider.getUriForFile(currentActivity, authority, newFile);
-      }
-      catch(IllegalArgumentException e) {
-        sendEvent(OPEN_EVENT, currentId, e.getMessage());
-        return;
-      }
+    public RNFileViewerModule(ReactApplicationContext reactContext) {
+        super(reactContext);
+        this.reactContext = reactContext;
+        reactContext.addActivityEventListener(mActivityEventListener);
     }
 
-    if(contentUri == null) {
-      sendEvent(OPEN_EVENT, currentId, "Invalid file");
-      return;
-    }
+    @ReactMethod
+    public void open(String path, Integer currentId, ReadableMap options) {
+        Uri contentUri = null;
+        Boolean showOpenWithDialog = options.hasKey(SHOW_OPEN_WITH_DIALOG) ? options.getBoolean(SHOW_OPEN_WITH_DIALOG) : false;
+        Boolean showStoreSuggestions = options.hasKey(SHOW_STORE_SUGGESTIONS) ? options.getBoolean(SHOW_STORE_SUGGESTIONS) : false;
 
-    String extension = MimeTypeMap.getFileExtensionFromUrl(path).toLowerCase();
-    String mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension);
+        if (path.startsWith("content://")) {
+            contentUri = Uri.parse(path);
+        } else {
+            File file = new File(path);
 
-    Intent shareIntent = new Intent();
-
-    shareIntent.setAction(Intent.ACTION_VIEW);
-    shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-    shareIntent.setDataAndType(contentUri, mimeType);
-    shareIntent.putExtra(Intent.EXTRA_STREAM, contentUri);
-    Intent intentActivity;
-
-    if (showOpenWithDialog) {
-      intentActivity = Intent.createChooser(shareIntent, "Open with");
-    } else {
-      intentActivity = shareIntent;
-    }
-
-    PackageManager pm = getCurrentActivity().getPackageManager();
-
-    if (shareIntent.resolveActivity(pm) != null) {
-      try {
-        getCurrentActivity().startActivityForResult(intentActivity, currentId + RN_FILE_VIEWER_REQUEST);
-        sendEvent(OPEN_EVENT, currentId, null);
-      }
-      catch(Exception e) {
-        sendEvent(OPEN_EVENT, currentId, e.getMessage());
-      }
-      } else {
-        try {
-          if (showStoreSuggestions) {
-            if(mimeType == null) {
-              throw new Exception("It wasn't possible to detect the type of the file");
+            Activity currentActivity = getCurrentActivity();
+            if (currentActivity == null) {
+                sendEvent(OPEN_EVENT, currentId, "Activity doesn't exist");
+                return;
             }
-            Intent storeIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("market://search?q=" + mimeType + "&c=apps"));
-            getCurrentActivity().startActivity(storeIntent);
-          }
-          throw new Exception("No app associated with this mime type");
-        }
-        catch(Exception e) {
-          sendEvent(OPEN_EVENT, currentId, e.getMessage());
-        }
-      }
-  }
 
-  @Override
-  public String getName() {
-    return "RNFileViewer";
-  }
+            try {
+                final String packageName = currentActivity.getPackageName();
+                final String authority = packageName + ".provider";
 
-  private void sendEvent(String eventName, Integer currentId, String errorMessage) {
-    WritableMap params = Arguments.createMap();
-    params.putInt("id", currentId);
-    if(errorMessage != null) {
-      params.putString("error", errorMessage);
+                File filesDir = reactContext.getFilesDir();
+                File cacheDir = reactContext.getCacheDir();
+                File externalFilesDir = reactContext.getExternalFilesDir(null);
+                File externalStorage = android.os.Environment.getExternalStorageDirectory();
+
+                File baseDir = null;
+                if (path.startsWith(filesDir.getAbsolutePath())) {
+                    baseDir = filesDir;
+                } else if (path.startsWith(cacheDir.getAbsolutePath())) {
+                    baseDir = cacheDir;
+                } else if (externalFilesDir != null && path.startsWith(externalFilesDir.getAbsolutePath())) {
+                    baseDir = externalFilesDir;
+                } else if (path.startsWith(externalStorage.getAbsolutePath())) {
+                    baseDir = externalStorage;
+                } else {
+                    sendEvent(OPEN_EVENT, currentId, "Path not under a configured FileProvider root");
+                    return;
+                }
+
+                String relativePath = path.substring(baseDir.getAbsolutePath().length());
+                File adjustedFile = new File(baseDir, relativePath);
+                contentUri = FileProvider.getUriForFile(currentActivity, authority, adjustedFile);
+            } catch (IllegalArgumentException e) {
+                sendEvent(OPEN_EVENT, currentId, e.getMessage());
+                return;
+            }
+        }
+
+        if (contentUri == null) {
+            sendEvent(OPEN_EVENT, currentId, "Invalid file");
+            return;
+        }
+
+        String extension = MimeTypeMap.getFileExtensionFromUrl(path).toLowerCase();
+        String mimeType = MimeTypeMap.getSingleton().getMimeTypeFromExtension(extension);
+
+        Intent shareIntent = new Intent();
+
+        shareIntent.setAction(Intent.ACTION_VIEW);
+        shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        shareIntent.setDataAndType(contentUri, mimeType);
+        shareIntent.putExtra(Intent.EXTRA_STREAM, contentUri);
+        Intent intentActivity;
+
+        if (showOpenWithDialog) {
+            intentActivity = Intent.createChooser(shareIntent, "Open with");
+        } else {
+            intentActivity = shareIntent;
+        }
+
+        PackageManager pm = getCurrentActivity().getPackageManager();
+
+        if (shareIntent.resolveActivity(pm) != null) {
+            try {
+                getCurrentActivity().startActivityForResult(intentActivity, currentId + RN_FILE_VIEWER_REQUEST);
+                sendEvent(OPEN_EVENT, currentId, null);
+            } catch (Exception e) {
+                sendEvent(OPEN_EVENT, currentId, e.getMessage());
+            }
+        } else {
+            try {
+                if (showStoreSuggestions) {
+                    if (mimeType == null) {
+                        throw new Exception("It wasn't possible to detect the type of the file");
+                    }
+                    Intent storeIntent = new Intent(Intent.ACTION_VIEW, Uri.parse("market://search?q=" + mimeType + "&c=apps"));
+                    getCurrentActivity().startActivity(storeIntent);
+                }
+                throw new Exception("No app associated with this mime type");
+            } catch (Exception e) {
+                sendEvent(OPEN_EVENT, currentId, e.getMessage());
+            }
+        }
     }
-    reactContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
-      .emit(eventName, params);
-  }
 
-  @ReactMethod
-  public void addListener(String eventName) { }
+    @Override
+    public String getName() {
+        return "RNFileViewer";
+    }
 
-  @ReactMethod
-  public void removeListeners(Integer count) { }
+    private void sendEvent(String eventName, Integer currentId, String errorMessage) {
+        WritableMap params = Arguments.createMap();
+        params.putInt("id", currentId);
+        if (errorMessage != null) {
+            params.putString("error", errorMessage);
+        }
+        reactContext.getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
+                .emit(eventName, params);
+    }
+
+    @ReactMethod
+    public void addListener(String eventName) {
+    }
+
+    @ReactMethod
+    public void removeListeners(Integer count) {
+    }
 }
