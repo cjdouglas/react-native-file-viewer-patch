@@ -44,6 +44,7 @@ public class RNFileViewerModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void open(String path, Integer currentId, ReadableMap options) {
+        android.util.Log.d("RNFileViewer", "Attempting to open file: " + path);
         Uri contentUri = null;
         Boolean showOpenWithDialog = options.hasKey(SHOW_OPEN_WITH_DIALOG) ? options.getBoolean(SHOW_OPEN_WITH_DIALOG) : false;
         Boolean showStoreSuggestions = options.hasKey(SHOW_STORE_SUGGESTIONS) ? options.getBoolean(SHOW_STORE_SUGGESTIONS) : false;
