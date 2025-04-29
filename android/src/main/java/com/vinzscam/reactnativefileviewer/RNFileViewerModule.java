@@ -68,6 +68,12 @@ public class RNFileViewerModule extends ReactContextBaseJavaModule {
                 File externalFilesDir = reactContext.getExternalFilesDir(null);
                 File externalStorage = android.os.Environment.getExternalStorageDirectory();
 
+                android.util.Log.d("RNFileViewer", "filesDir: " + filesDir.getAbsolutePath());
+                android.util.Log.d("RNFileViewer", "cacheDir: " + cacheDir.getAbsolutePath());
+                android.util.Log.d("RNFileViewer", "externalFilesDir: " + (externalFilesDir != null ? externalFilesDir.getAbsolutePath() : "null"));
+                android.util.Log.d("RNFileViewer", "externalStorage: " + externalStorage.getAbsolutePath());
+                android.util.Log.d("RNFileViewer", "input path: " + path);
+
                 File baseDir = null;
                 if (path.startsWith(filesDir.getAbsolutePath())) {
                     baseDir = filesDir;
