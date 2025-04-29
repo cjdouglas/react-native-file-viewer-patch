@@ -44,7 +44,6 @@ public class RNFileViewerModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void open(String path, Integer currentId, ReadableMap options) {
-        android.util.Log.d("RNFileViewer", "Attempting to open file: " + path);
         Uri contentUri = null;
         Boolean showOpenWithDialog = options.hasKey(SHOW_OPEN_WITH_DIALOG) ? options.getBoolean(SHOW_OPEN_WITH_DIALOG) : false;
         Boolean showStoreSuggestions = options.hasKey(SHOW_STORE_SUGGESTIONS) ? options.getBoolean(SHOW_STORE_SUGGESTIONS) : false;
@@ -52,46 +51,17 @@ public class RNFileViewerModule extends ReactContextBaseJavaModule {
         if (path.startsWith("content://")) {
             contentUri = Uri.parse(path);
         } else {
-            File file = new File(path);
+            File newFile = new File(path);
 
-            Activity currentActivity = getCurrentActivity();
+            Activity currentActivity = reactContext.getCurrentActivity();
             if (currentActivity == null) {
                 sendEvent(OPEN_EVENT, currentId, "Activity doesn't exist");
                 return;
             }
-
             try {
                 final String packageName = currentActivity.getPackageName();
-                final String authority = packageName + ".provider";
-
-                File filesDir = reactContext.getFilesDir();
-                File cacheDir = reactContext.getCacheDir();
-                File externalFilesDir = reactContext.getExternalFilesDir(null);
-                File externalStorage = android.os.Environment.getExternalStorageDirectory();
-
-                android.util.Log.d("RNFileViewer", "filesDir: " + filesDir.getAbsolutePath());
-                android.util.Log.d("RNFileViewer", "cacheDir: " + cacheDir.getAbsolutePath());
-                android.util.Log.d("RNFileViewer", "externalFilesDir: " + (externalFilesDir != null ? externalFilesDir.getAbsolutePath() : "null"));
-                android.util.Log.d("RNFileViewer", "externalStorage: " + externalStorage.getAbsolutePath());
-                android.util.Log.d("RNFileViewer", "input path: " + path);
-
-                File baseDir = null;
-                if (path.startsWith(filesDir.getAbsolutePath())) {
-                    baseDir = filesDir;
-                } else if (path.startsWith(cacheDir.getAbsolutePath())) {
-                    baseDir = cacheDir;
-                } else if (externalFilesDir != null && path.startsWith(externalFilesDir.getAbsolutePath())) {
-                    baseDir = externalFilesDir;
-                } else if (path.startsWith(externalStorage.getAbsolutePath())) {
-                    baseDir = externalStorage;
-                } else {
-                    sendEvent(OPEN_EVENT, currentId, "Path not under a configured FileProvider root");
-                    return;
-                }
-
-                String relativePath = path.substring(baseDir.getAbsolutePath().length());
-                File adjustedFile = new File(baseDir, relativePath);
-                contentUri = FileProvider.getUriForFile(currentActivity, authority, adjustedFile);
+                final String authority = new StringBuilder(packageName).append(".provider").toString();
+                contentUri = FileProvider.getUriForFile(currentActivity, authority, newFile);
             } catch (IllegalArgumentException e) {
                 sendEvent(OPEN_EVENT, currentId, e.getMessage());
                 return;
